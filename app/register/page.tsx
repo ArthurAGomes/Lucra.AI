@@ -42,7 +42,7 @@ export default function RegisterPage() {
     }
   };
 
-  const passwordStrength = password.length >= 6 && password !== confirmPassword;
+  const passwordStrength = password.length >= 6 && password === confirmPassword;
 
   return (
     <div className="min-h-screen flex">
@@ -64,7 +64,7 @@ export default function RegisterPage() {
                 IA
               </div>
               <div className="text-left">
-                <h1 className="text-4xl font-bold">InvestIA</h1>
+                <h1 className="text-4xl font-bold">LucraIA</h1>
                 <p className="text-white/80">Junte-se ao futuro financeiro</p>
               </div>
             </div>
@@ -108,7 +108,7 @@ export default function RegisterPage() {
                 IA
               </div>
               <div>
-                <h1 className="text-2xl font-bold">InvestIA</h1>
+                <h1 className="text-2xl font-bold">LucraIA</h1>
                 <p className="text-sm text-muted-foreground">Junte-se ao futuro financeiro</p>
               </div>
             </div>

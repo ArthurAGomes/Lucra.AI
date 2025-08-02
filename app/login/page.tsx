@@ -49,7 +49,7 @@ export default function LoginPage() {
                 IA
               </div>
               <div className="text-left">
-                <h1 className="text-4xl font-bold">InvestIA</h1>
+                <h1 className="text-4xl font-bold">LucraIA</h1>
                 <p className="text-white/80">Seu assistente financeiro inteligente</p>
               </div>
             </div>
@@ -93,7 +93,7 @@ export default function LoginPage() {
                 IA
               </div>
               <div>
-                <h1 className="text-2xl font-bold">InvestIA</h1>
+                <h1 className="text-2xl font-bold">LucraIA</h1>
                 <p className="text-sm text-muted-foreground">Seu assistente financeiro</p>
               </div>
             </div>

@@ -76,7 +76,7 @@ export function AppSidebar() {
           </div>
           <div>
             <h2 className="text-lg font-bold bg-gradient-to-r from-primary to-chart-1 bg-clip-text text-transparent">
-              InvestIA
+              LucraIA
             </h2>
             <p className="text-sm text-muted-foreground">Seu assistente financeiro</p>
           </div>

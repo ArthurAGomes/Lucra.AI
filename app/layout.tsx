@@ -12,7 +12,7 @@ import { ProtectedRoute } from "@/components/protected-route"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "LucraIA - Seu Assistente de Investimentos",
+  title: "LucraAI - Seu Assistente de Investimentos",
   description: "Plataforma inteligente para gestão de investimentos com IA",
   generator: 'v0.dev'
 }

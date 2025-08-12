@@ -1,4 +1,4 @@
-# LucraIA - Dashboard de Investimentos
+# LucraAI - Dashboard de Investimentos
 
 Uma plataforma inteligente para gestão de investimentos com IA, construída com Next.js, TypeScript e MongoDB.
 

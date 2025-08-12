@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,16 +16,6 @@ interface Message {
   timestamp: Date
 }
 
-const initialMessages: Message[] = [
-  {
-    id: "1",
-    role: "assistant",
-    content:
-      "Olá! Sou seu assistente de investimentos com IA. Posso ajudá-lo com análises de mercado, sugestões de investimentos baseadas no seu perfil e responder dúvidas sobre finanças. Como posso ajudá-lo hoje?",
-    timestamp: new Date(),
-  },
-]
-
 const quickSuggestions = [
   "Analise minha carteira atual",
   "Quais são as melhores ações para comprar agora?",
@@ -36,12 +26,22 @@ const quickSuggestions = [
 ]
 
 export default function AIChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages)
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Olá! Sou seu assistente de investimentos com IA. Posso ajudá-lo com análises de mercado, sugestões de investimentos baseadas no seu perfil e responder dúvidas sobre finanças. Como posso ajudá-lo hoje?',
+      timestamp: new Date()
+    }
+  ])
+  
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return
+  const sendMessage = async (content: string) => {
+    if (!content.trim() || isLoading) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -50,48 +50,132 @@ export default function AIChatPage() {
       timestamp: new Date(),
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    setMessages(prev => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
+    setError(null)
 
-    // Simular resposta da IA
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: generateAIResponse(content),
-        timestamp: new Date(),
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            ...messages.map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: content.trim() }
+          ]
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Erro HTTP: ${response.status} - ${errorText}`)
       }
-      setMessages((prev) => [...prev, aiResponse])
+
+      if (!response.body) {
+        throw new Error('Resposta sem corpo')
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let assistantContent = ""
+
+      // Criar mensagem do assistente vazia
+      const assistantId = (Date.now() + 1).toString()
+      setMessages(prev => [...prev, {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date()
+      }])
+
+      // Ler stream
+      while (true) {
+        const { done, value } = await reader.read()
+        
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        console.log('Chunk recebido:', chunk) // Debug
+        
+        // Parse do formato SSE (Server-Sent Events)
+        const lines = chunk.split('\n')
+        for (const line of lines) {
+          if (line.trim().startsWith('data: ')) {
+            const dataStr = line.replace('data: ', '').trim()
+            
+            if (dataStr === '[DONE]') {
+              console.log('Stream finalizado')
+              break
+            }
+            
+            if (dataStr && dataStr !== '') {
+              try {
+                const data = JSON.parse(dataStr)
+                const content = data.choices?.[0]?.delta?.content
+                
+                console.log('Conteúdo extraído:', content) // Debug
+                
+                if (content) {
+                  assistantContent += content
+                  
+                  // Atualizar mensagem do assistente
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantId 
+                      ? { ...msg, content: assistantContent }
+                      : msg
+                  ))
+                }
+              } catch (e) {
+                console.log('Erro ao fazer parse do JSON:', e, 'Data:', dataStr)
+              }
+            }
+          }
+        }
+      }
+
+      // Se não recebeu conteúdo via streaming, verificar se há conteúdo completo
+      if (!assistantContent.trim()) {
+        console.log('Nenhum conteúdo via streaming, tentando parse completo...')
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantId 
+            ? { ...msg, content: 'Recebi uma resposta mas o conteúdo não foi processado corretamente. Tente novamente.' }
+            : msg
+        ))
+      }
+
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error)
+      setError(error instanceof Error ? error.message : 'Erro desconhecido')
+      
+      // Adicionar mensagem de erro
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content: `Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}. Verifique o console para mais detalhes.`,
+        timestamp: new Date()
+      }])
+    } finally {
       setIsLoading(false)
-    }, 1500)
+    }
   }
 
-  const generateAIResponse = (userInput: string): string => {
-    const input = userInput.toLowerCase()
-
-    if (input.includes("carteira") || input.includes("portfolio")) {
-      return "Analisando sua carteira atual... Com base nos dados, vejo que você tem uma boa diversificação entre ações (70%) e renda fixa (30%). Suas principais posições em PETR4 e VALE3 estão performando bem. Recomendo considerar adicionar algumas ações de tecnologia como WEGE3 para melhor diversificação setorial."
-    }
-
-    if (input.includes("ações") || input.includes("comprar")) {
-      return "Com base na análise atual do mercado e seu perfil conservador-moderado, recomendo: 1) WEGE3 - forte crescimento no setor industrial, 2) ITUB4 - sólido fundamentalista bancário, 3) RENT3 - setor de locação em expansão. Lembre-se sempre de fazer sua própria análise antes de investir."
-    }
-
-    if (input.includes("diversificar")) {
-      return "Para diversificar seus investimentos, considere: 1) Diferentes setores (tecnologia, saúde, consumo), 2) Classes de ativos (ações, FIIs, renda fixa), 3) Geografia (mercado nacional e internacional), 4) Prazos (curto, médio e longo prazo). Sua carteira atual está 70% em ações - considere aumentar a posição em FIIs para 10-15%."
-    }
-
-    if (input.includes("petr4")) {
-      return "Análise técnica PETR4: A ação está em tendência de alta, rompeu resistência em R$ 32,00. Indicadores: RSI em 65 (neutro), MACD positivo, volume acima da média. Suporte em R$ 30,50, resistência em R$ 34,00. Cenário positivo para curto prazo, mas atenção aos fatores macroeconômicos do petróleo."
-    }
-
-    if (input.includes("cripto")) {
-      return "Mercado cripto está em momento de consolidação. Bitcoin testando suporte em $42k, Ethereum mostrando força relativa. Para seu perfil, recomendo máximo 5-10% da carteira em crypto, focando em BTC e ETH. Altcoins como SOL e AVAX podem ser interessantes para pequenas posições especulativas."
-    }
-
-    return "Entendi sua pergunta. Com base na análise de mercado atual e seu perfil de investidor, posso fornecer insights personalizados. Você gostaria que eu analise algum ativo específico ou precisa de orientações sobre estratégias de investimento? Estou aqui para ajudar com análises técnicas, fundamentalistas e sugestões baseadas em IA."
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    sendMessage(input)
   }
+
+  const handleQuickSuggestion = (suggestion: string) => {
+    sendMessage(suggestion)
+  }
+
+  // Rolagem automática para a última mensagem
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   return (
     <div className="flex-1 flex flex-col h-screen">
@@ -108,8 +192,8 @@ export default function AIChatPage() {
             </div>
           </div>
         </div>
-        <Badge variant="secondary" className="bg-green-100 text-green-800">
-          Online
+        <Badge variant="secondary" className={`${isLoading ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+          {isLoading ? 'Processando...' : 'Online'}
         </Badge>
       </div>
 
@@ -135,7 +219,7 @@ export default function AIChatPage() {
                     message.role === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted"
                   }`}
                 >
-                  <p className="text-sm">{message.content}</p>
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   <p className="text-xs opacity-70 mt-2">
                     {message.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </p>
@@ -172,6 +256,24 @@ export default function AIChatPage() {
                 </div>
               </div>
             )}
+
+            {error && (
+              <div className="flex gap-3 justify-start">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-red-600 text-white">
+                    <AlertCircle className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-sm text-red-800">
+                    Desculpe, ocorreu um erro. Por favor, tente novamente.
+                  </p>
+                  <p className="text-xs text-red-600 mt-1">{error}</p>
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Quick Suggestions */}
@@ -184,8 +286,9 @@ export default function AIChatPage() {
                     key={index}
                     variant="outline"
                     size="sm"
-                    onClick={() => handleSendMessage(suggestion)}
+                    onClick={() => handleQuickSuggestion(suggestion)}
                     className="text-xs"
+                    disabled={isLoading}
                   >
                     {suggestion}
                   </Button>
@@ -194,18 +297,17 @@ export default function AIChatPage() {
             </div>
 
             {/* Input */}
-            <div className="flex gap-2">
+            <form onSubmit={handleSubmit} className="flex gap-2">
               <Input
                 placeholder="Digite sua pergunta sobre investimentos..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage(input)}
                 disabled={isLoading}
               />
-              <Button onClick={() => handleSendMessage(input)} disabled={isLoading || !input.trim()} size="icon">
+              <Button type="submit" disabled={isLoading || !input.trim()} size="icon">
                 <Send className="h-4 w-4" />
               </Button>
-            </div>
+            </form>
           </div>
         </div>
 
